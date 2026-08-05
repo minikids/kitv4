@@ -1467,24 +1467,6 @@ local function authenticate()
     getSharedState().catrole = "Paid"
     getSharedState().catname = "User"
 end
-local function getBestWeaponInInventory()
-    local bestSlot = nil
-    local maxDamage = -1
-
-    for _, item in ipairs(store.inventory.inventory.items) do
-        local meta = bedwars.ItemMeta[item.itemType]
-        if meta and meta.sword then
-            local damage = meta.sword.damage or 0
-            if damage > maxDamage then
-                maxDamage = damage
-                bestSlot = { tool = item, toolType = "sword" }
-            end
-        end
-    end
-
-    return bestSlot
-end
-
 local function getAuraWeapon()
     if not entity.isAlive then
         return
@@ -1507,28 +1489,9 @@ local function getAuraWeapon()
         return
     end
 
-    local slot
-    if autoWeaponToggle and autoWeaponToggle.Enabled then
-        if not limitToItemsToggle.Enabled or (store.hand and store.hand.toolType == "sword") then
-            local bestSlot = getBestWeaponInInventory()
-            if bestSlot then
-                local hand = store.hand
-                if not hand or hand.tool ~= bestSlot.tool then
-                    local itemSlot = findItemForTool(bestSlot.tool)
-                    if itemSlot then
-                        equipItem(itemSlot)
-                    end
-                end
-                slot = bestSlot
-            end
-        end
-    end
-
+    local slot = limitToItemsToggle.Enabled and store.hand
     if not slot then
-        slot = limitToItemsToggle.Enabled and store.hand
-        if not slot then
-            slot = store.tools.sword
-        end
+        slot = store.tools.sword
     end
 
     if not slot or not slot.tool then
@@ -1797,27 +1760,7 @@ local function getKillauraWeapon()
         end
     end
 
-    local held
-    if autoWeaponToggle and autoWeaponToggle.Enabled then
-        if not killauraLimitToItemsToggle.Enabled or (store.hand and store.hand.toolType == "sword") then
-            local bestSlot = getBestWeaponInInventory()
-            if bestSlot then
-                local hand = store.hand
-                if not hand or hand.tool ~= bestSlot.tool then
-                    local itemSlot = findItemForTool(bestSlot.tool)
-                    if itemSlot then
-                        equipItem(itemSlot)
-                    end
-                end
-                held = bestSlot
-            end
-        end
-    end
-
-    if not held then
-        held = (killauraLimitToItemsToggle.Enabled and store.hand) or store.tools.sword
-    end
-
+    local held = (killauraLimitToItemsToggle.Enabled and store.hand) or store.tools.sword
     if not held or not held.tool then
         return
     end
@@ -1936,7 +1879,6 @@ local function setupKillaura()
     local noTweenToggle
     local limitToItemsToggle
     local swingOnlyToggle
-    local autoWeaponToggle
     local projectilesList
     local legitSwitchToggle
     local fireRateSlider
@@ -2420,13 +2362,7 @@ local function setupKillaura()
         Name = "Swing only",
         Tooltip = "Only attacks while swinging manually",
     })
-
-    autoWeaponToggle = killaura:CreateToggle({
-        Name = "Auto Weapon",
-        Tooltip = "Automatically switches to the highest damage weapon in your inventory when attacking",
-    })
 end
-
 local function setupSkinChanger()
     local skinChanger
     local skinDropdowns = {}
@@ -2531,9 +2467,6 @@ local function setupSkinChanger()
         end
     end
 end
-setupKillaura()
-setupSkinChanger()
-
 run(function()
     local autoBeekeeper, collectBees, collectRange, collectDelay, limitToItem
     local depositBees, depositRange, depositDelay
@@ -4015,7 +3948,7 @@ silentAimToggle = silentAura:CreateToggle({
         targetAreaDropdown.Object.Visible = not enabled
     end,
     Default = false,
-    Tooltip = "Uses KitVape's aiming technology to silently aim while looking legit",
+    Tooltip = "Uses catvape's aiming technology to silently aim while looking legit",
 })
 
 showTargetToggle = silentAura:CreateToggle({
