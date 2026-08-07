@@ -2363,7 +2363,7 @@ local function setupKillaura()
         Tooltip = "Only attacks while swinging manually",
     })
 end
-local function setupMaxFPS()
+do
     local maxFps
     local lighting
     local terrain
