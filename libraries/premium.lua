@@ -2363,6 +2363,524 @@ local function setupKillaura()
         Tooltip = "Only attacks while swinging manually",
     })
 end
+local function setupMaxFPS()
+    local maxFps
+    local lighting
+    local terrain
+    local qualityConnection
+
+    local savedLighting = {}
+    local savedTerrain = {}
+    local savedMaterials = {}
+    local savedDecorations = {}
+    local removedPartSet = {}
+    local hiddenDecor = {}
+    local hiddenParticles = {}
+    local particleSet = {}
+    local destroyedShaders = {}
+    local destroyedShaderIds = {}
+    local hiddenClothing = {}
+
+    local snapshotKeys = {
+        "GlobalShadows", "FogEnd", "FogStart", "Brightness", "ClockTime",
+        "GeographicLatitude", "EnvironmentDiffuseScale", "EnvironmentSpecularScale",
+        "ShadowSoftness", "Technology", "Ambient", "OutdoorAmbient",
+    }
+
+    local function qualityEnumName(level)
+        level = math.clamp(math.floor(level), 1, 10)
+        if level < 10 then
+            return "Level0" .. level
+        end
+        return "Level10"
+    end
+
+    local function detailEnumName(level)
+        level = math.clamp(math.floor(level), 1, 4)
+        return "Level0" .. level
+    end
+
+    local function snapshot(src, dest, keys)
+        if not src then return end
+        for _, key in keys do
+            pcall(function()
+                if src[key] ~= nil then
+                    dest[key] = src[key]
+                end
+            end)
+        end
+    end
+
+    local function restore(src, dest)
+        if not src then return end
+        for key, value in dest do
+            pcall(function() src[key] = value end)
+        end
+    end
+
+    local function deepClone(instance)
+        local ok, clone = pcall(function()
+            local c = instance:Clone()
+            for _, child in instance:GetChildren() do
+                local childClone = deepClone(child)
+                if childClone then
+                    childClone.Parent = c
+                end
+            end
+            return c
+        end)
+        if ok then return clone end
+        return nil
+    end
+
+    local function destroyShaders()
+        local light = game:GetService("Lighting")
+        for _, effect in light:GetChildren() do
+            if not destroyedShaderIds[effect] then
+                if effect:IsA("PostEffect") or effect:IsA("Atmosphere") or effect:IsA("Sky")
+                    or effect:IsA("BloomEffect") or effect:IsA("BlurEffect")
+                    or effect:IsA("ColorCorrectionEffect") or effect:IsA("SunRaysEffect") then
+                    pcall(function()
+                        local clone = deepClone(effect)
+                        if clone then
+                            table.insert(destroyedShaders, clone)
+                        end
+                        destroyedShaderIds[effect] = true
+                        effect:Destroy()
+                    end)
+                end
+            end
+        end
+    end
+
+    local function restoreShaders()
+        local light = game:GetService("Lighting")
+        local toRemove = {}
+        for _, effect in light:GetChildren() do
+            if destroyedShaderIds[effect]
+                and (effect:IsA("PostEffect") or effect:IsA("Atmosphere") or effect:IsA("Sky")) then
+                table.insert(toRemove, effect)
+            end
+        end
+        for _, effect in toRemove do
+            pcall(function() effect:Destroy() end)
+        end
+        for _, clone in destroyedShaders do
+            pcall(function() clone.Parent = light end)
+        end
+        table.clear(destroyedShaders)
+        table.clear(destroyedShaderIds)
+    end
+
+    local function stripParticles()
+        for _, desc in workspace:GetDescendants() do
+            if (desc:IsA("ParticleEmitter") or desc:IsA("Trail") or desc:IsA("Beam")
+                or desc:IsA("Fire") or desc:IsA("Smoke") or desc:IsA("Sparkles"))
+                and not particleSet[desc] then
+                particleSet[desc] = {Enabled = desc.Enabled, Rate = desc.Rate or 0}
+                table.insert(hiddenParticles, desc)
+                pcall(function() desc.Enabled = false end)
+                if desc:IsA("ParticleEmitter") then
+                    pcall(function() desc.Rate = 0 end)
+                end
+            end
+        end
+    end
+
+    local function restoreParticles()
+        for _, desc in hiddenParticles do
+            pcall(function()
+                if desc and desc.Parent then
+                    desc.Enabled = particleSet[desc] and particleSet[desc].Enabled or true
+                    if desc:IsA("ParticleEmitter") and particleSet[desc] then
+                        desc.Rate = particleSet[desc].Rate
+                    end
+                end
+            end)
+        end
+        table.clear(hiddenParticles)
+        table.clear(particleSet)
+    end
+
+    local function stripDecorations()
+        for _, desc in workspace:GetDescendants() do
+            if (desc:IsA("Decal") or desc:IsA("Texture"))
+                and desc.Parent and desc.Parent:IsA("BasePart")
+                and not table.find(hiddenDecor, desc) then
+                table.insert(hiddenDecor, desc)
+                table.insert(savedDecorations, {Instance = desc, Transparency = desc.Transparency})
+                pcall(function() desc.Transparency = 1 end)
+            end
+        end
+    end
+
+    local function restoreDecorations()
+        for _, entry in savedDecorations do
+            pcall(function()
+                if entry.Instance and entry.Instance.Parent then
+                    entry.Instance.Transparency = entry.Transparency
+                end
+            end)
+        end
+        table.clear(hiddenDecor)
+        table.clear(savedDecorations)
+    end
+
+    local function stripAvatarClothing()
+        for _, char in workspace:GetChildren() do
+            if char:IsA("Model") and char:FindFirstChildOfClass("Humanoid") then
+                for _, part in char:GetDescendants() do
+                    if part:IsA("Shirt") then
+                        table.insert(hiddenClothing, {Instance = part, ShirtTemplate = part.ShirtTemplate})
+                        pcall(function() part.ShirtTemplate = "" end)
+                    elseif part:IsA("Pants") then
+                        table.insert(hiddenClothing, {Instance = part, PantsTemplate = part.PantsTemplate})
+                        pcall(function() part.PantsTemplate = "" end)
+                    elseif part:IsA("ShirtGraphic") then
+                        table.insert(hiddenClothing, {Instance = part, Graphic = part.Graphic})
+                        pcall(function() part.Graphic = "" end)
+                    end
+                end
+            end
+        end
+    end
+
+    local function restoreAvatarClothing()
+        for _, entry in hiddenClothing do
+            pcall(function()
+                if entry.ShirtTemplate ~= nil then
+                    entry.Instance.ShirtTemplate = entry.ShirtTemplate
+                end
+                if entry.PantsTemplate ~= nil then
+                    entry.Instance.PantsTemplate = entry.PantsTemplate
+                end
+                if entry.Graphic ~= nil then
+                    entry.Instance.Graphic = entry.Graphic
+                end
+            end)
+        end
+        table.clear(hiddenClothing)
+    end
+
+    local function flattenMaterials()
+        for _, v in workspace:GetDescendants() do
+            if v:IsA("BasePart") then
+                if v.Material ~= Enum.Material.Plastic and v.Material ~= Enum.Material.SmoothPlastic then
+                    if not removedPartSet[v] then
+                        removedPartSet[v] = true
+                        table.insert(savedMaterials, {Instance = v, Material = v.Material})
+                    end
+                    pcall(function() v.Material = Enum.Material.Plastic end)
+                end
+            end
+        end
+    end
+
+    local function restoreMaterials()
+        for _, entry in savedMaterials do
+            pcall(function()
+                if entry.Instance and entry.Instance.Parent then
+                    entry.Instance.Material = entry.Material
+                end
+            end)
+        end
+        table.clear(savedMaterials)
+        table.clear(removedPartSet)
+    end
+
+    local function setWaterEffects(enabled)
+        terrain = workspace:FindFirstChildOfClass("Terrain")
+        if not terrain then return end
+        if enabled then
+            snapshot(terrain, savedTerrain, {"WaterWaveSize", "WaterWaveSpeed", "WaterReflectance", "WaterTransparency"})
+            pcall(function()
+                terrain.WaterWaveSize = 0
+                terrain.WaterWaveSpeed = 0
+                terrain.WaterReflectance = 0
+                terrain.WaterTransparency = 1
+            end)
+        else
+            restore(terrain, savedTerrain)
+            table.clear(savedTerrain)
+        end
+    end
+
+    local function applyMaxFps()
+        lighting = game:GetService("Lighting")
+        terrain = workspace:FindFirstChildOfClass("Terrain")
+
+        snapshot(lighting, savedLighting, snapshotKeys)
+        pcall(function()
+            local userSettings = game:GetService("UserSettings")
+            savedLighting.SavedQualityLevel = userSettings.GameSettings.SavedQualityLevel
+        end)
+
+        pcall(function()
+            lighting.GlobalShadows = false
+            lighting.FogEnd = 1e9
+            lighting.FogStart = 0
+            lighting.Brightness = 1
+            lighting.EnvironmentDiffuseScale = 0
+            lighting.EnvironmentSpecularScale = 0
+            lighting.ShadowSoftness = 0
+            lighting.Technology = Enum.Technology.Compatibility
+            lighting.Ambient = Color3.new(1, 1, 1)
+            lighting.OutdoorAmbient = Color3.new(1, 1, 1)
+        end)
+
+        pcall(function()
+            settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+            settings().Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level04
+            settings().Rendering.PhysicsQuality = Enum.PhysicsQuality.Manual
+            pcall(function()
+                game:GetService("UserSettings").GameSettings.SavedQualityLevel = Enum.SavedQualitySetting.QualityLevel1
+            end)
+        end)
+
+        destroyShaders()
+        stripParticles()
+        stripDecorations()
+        flattenMaterials()
+
+        if maxFps.Options["Disable Water Effects"] and maxFps.Options["Disable Water Effects"].Enabled then
+            setWaterEffects(true)
+        end
+        if maxFps.Options["Strip Avatar Clothing"] and maxFps.Options["Strip Avatar Clothing"].Enabled then
+            stripAvatarClothing()
+        end
+
+        if qualityConnection then
+            pcall(function() qualityConnection:Disconnect() end)
+        end
+        qualityConnection = game:GetService("RunService").RenderStepped:Connect(function()
+            pcall(function()
+                settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+            end)
+        end)
+    end
+
+    local function restoreAll()
+        if qualityConnection then
+            pcall(function() qualityConnection:Disconnect() end)
+            qualityConnection = nil
+        end
+
+        lighting = game:GetService("Lighting")
+        terrain = workspace:FindFirstChildOfClass("Terrain")
+
+        restore(lighting, savedLighting)
+        if savedLighting.SavedQualityLevel then
+            pcall(function()
+                game:GetService("UserSettings").GameSettings.SavedQualityLevel = savedLighting.SavedQualityLevel
+            end)
+            savedLighting.SavedQualityLevel = nil
+        end
+        table.clear(savedLighting)
+
+        restore(terrain, savedTerrain)
+        table.clear(savedTerrain)
+
+        pcall(function()
+            settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
+            settings().Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Automatic
+            settings().Rendering.PhysicsQuality = Enum.PhysicsQuality.Automatic
+        end)
+
+        restoreMaterials()
+        restoreShaders()
+        restoreParticles()
+        restoreAvatarClothing()
+        restoreDecorations()
+    end
+
+    maxFps = vape.Legit:CreateModule({
+        Name = "Max FPS",
+        Function = function(callback)
+            if callback then
+                applyMaxFps()
+            else
+                restoreAll()
+            end
+        end,
+        Tooltip = "Removes textures, particles, decorations, shadows, lighting effects, and forces minimum quality settings to maximize FPS",
+    })
+
+    maxFps:CreateToggle({
+        Name = "Remove Particles",
+        Default = true,
+        Function = function(enabled)
+            if enabled and maxFps.Enabled then
+                stripParticles()
+            elseif not enabled then
+                restoreParticles()
+            end
+        end,
+    })
+
+    maxFps:CreateToggle({
+        Name = "Remove Decorations",
+        Default = true,
+        Function = function(enabled)
+            if enabled and maxFps.Enabled then
+                stripDecorations()
+            else
+                restoreDecorations()
+            end
+        end,
+    })
+
+    maxFps:CreateToggle({
+        Name = "Remove Shaders",
+        Default = true,
+        Function = function(enabled)
+            if enabled and maxFps.Enabled then
+                destroyShaders()
+            elseif not enabled then
+                restoreShaders()
+            end
+        end,
+    })
+
+    maxFps:CreateToggle({
+        Name = "Low Quality Materials",
+        Default = true,
+        Function = function(enabled)
+            if enabled and maxFps.Enabled then
+                flattenMaterials()
+            else
+                restoreMaterials()
+            end
+        end,
+    })
+
+    maxFps:CreateToggle({
+        Name = "Disable Shadows",
+        Default = true,
+        Function = function(enabled)
+            pcall(function()
+                local light = game:GetService("Lighting")
+                light.GlobalShadows = not enabled
+            end)
+        end,
+    })
+
+    maxFps:CreateToggle({
+        Name = "Disable Water Effects",
+        Default = true,
+        Function = function(enabled)
+            if maxFps.Enabled then
+                setWaterEffects(enabled)
+            end
+        end,
+    })
+
+    maxFps:CreateToggle({
+        Name = "Strip Avatar Clothing",
+        Default = false,
+        Function = function(enabled)
+            if enabled and maxFps.Enabled then
+                stripAvatarClothing()
+            else
+                restoreAvatarClothing()
+            end
+        end,
+    })
+
+    maxFps:CreateToggle({
+        Name = "Lock Quality Level",
+        Default = true,
+        Function = function(enabled)
+            if not maxFps.Enabled then return end
+            if enabled then
+                if qualityConnection then
+                    pcall(function() qualityConnection:Disconnect() end)
+                end
+                qualityConnection = game:GetService("RunService").RenderStepped:Connect(function()
+                    pcall(function()
+                        settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+                    end)
+                end)
+            else
+                if qualityConnection then
+                    pcall(function() qualityConnection:Disconnect() end)
+                    qualityConnection = nil
+                end
+            end
+        end,
+    })
+
+    maxFps:CreateSlider({
+        Name = "Quality Level",
+        Min = 1,
+        Max = 10,
+        Default = 1,
+        Function = function(value)
+            pcall(function()
+                settings().Rendering.QualityLevel = Enum.QualityLevel[qualityEnumName(value)]
+            end)
+        end,
+    })
+
+    maxFps:CreateSlider({
+        Name = "Mesh Detail",
+        Min = 1,
+        Max = 4,
+        Default = 4,
+        Suffix = function(value)
+            local labels = {[1] = "Lowest", [2] = "Low", [3] = "Medium", [4] = "High"}
+            return labels[math.floor(value)] or ""
+        end,
+        Function = function(value)
+            pcall(function()
+                settings().Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel[detailEnumName(value)]
+            end)
+        end,
+    })
+
+    maxFps:CreateSlider({
+        Name = "Shadow Softness",
+        Min = 0,
+        Max = 1,
+        Decimal = 10,
+        Default = 0,
+        Function = function(value)
+            pcall(function()
+                game:GetService("Lighting").ShadowSoftness = value
+            end)
+        end,
+    })
+
+    maxFps:CreateDropdown({
+        Name = "Lighting Mode",
+        List = {"Compatibility", "ShadowMap", "Future", "Voxel"},
+        Default = "Compatibility",
+        Function = function(value)
+            pcall(function()
+                game:GetService("Lighting").Technology = Enum.Technology[value]
+            end)
+        end,
+    })
+
+    maxFps:CreateButton({
+        Name = "Reapply All",
+        Function = function()
+            if not maxFps.Enabled then return end
+            maxFps:Toggle()
+            maxFps:Toggle()
+        end,
+        Tooltip = "Re-applies all FPS optimizations (useful if new objects have appeared)",
+    })
+
+    maxFps:CreateButton({
+        Name = "Restore Defaults",
+        Function = function()
+            if maxFps.Enabled then
+                maxFps:Toggle()
+            end
+        end,
+        Tooltip = "Disables Max FPS and restores everything to defaults",
+    })
+end
 local function setupSkinChanger()
     local skinChanger
     local skinDropdowns = {}
