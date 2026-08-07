@@ -2693,10 +2693,10 @@ local function setupMaxFPS()
         restoreDecorations()
     end
 
-    maxFps = vape.Legit:CreateModule({
+    maxFps = vape.Categories.Utility:CreateModule({
         Name = "Max FPS",
-        Function = function(callback)
-            if callback then
+        Function = function(enabled)
+            if enabled then
                 applyMaxFps()
             else
                 restoreAll()
