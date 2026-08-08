@@ -2684,7 +2684,7 @@ do
     })
 
     local function toggleParticles(enabled)
-        if enabled and maxFps.Enabled then
+        if enabled then
             for _, desc in workspace:GetDescendants() do
                 if not state.particleSet[desc] then
                     if desc:IsA("ParticleEmitter") or desc:IsA("Trail") or desc:IsA("Beam")
@@ -2715,7 +2715,7 @@ do
     end
 
     local function toggleDecorations(enabled)
-        if enabled and maxFps.Enabled then
+        if enabled then
             for _, desc in workspace:GetDescendants() do
                 if (desc:IsA("Decal") or desc:IsA("Texture"))
                     and desc.Parent and desc.Parent:IsA("BasePart")
@@ -2740,7 +2740,7 @@ do
 
     local function toggleShaders(enabled)
         local light = game:GetService("Lighting")
-        if enabled and maxFps.Enabled then
+        if enabled then
             for _, effect in light:GetChildren() do
                 if not state.destroyedShaderIds[effect] then
                     if effect:IsA("PostEffect") or effect:IsA("Atmosphere") or effect:IsA("Sky")
@@ -2764,7 +2764,7 @@ do
     end
 
     local function toggleMaterials(enabled)
-        if enabled and maxFps.Enabled then
+        if enabled then
             for _, v in workspace:GetDescendants() do
                 if v:IsA("BasePart") then
                     if v.Material ~= Enum.Material.Plastic and v.Material ~= Enum.Material.SmoothPlastic then
@@ -2790,7 +2790,7 @@ do
     end
 
     local function toggleClothing(enabled)
-        if enabled and maxFps.Enabled then
+        if enabled then
             for _, char in workspace:GetChildren() do
                 if char:IsA("Model") and char:FindFirstChildOfClass("Humanoid") then
                     for _, part in char:GetDescendants() do
@@ -2826,7 +2826,6 @@ do
     end
 
     local function toggleWater(enabled)
-        if not maxFps.Enabled then return end
         local terrain = workspace:FindFirstChildOfClass("Terrain")
         if not terrain then return end
         if enabled then
@@ -2852,7 +2851,6 @@ do
     end
 
     local function toggleQualityLock(enabled)
-        if not maxFps.Enabled then return end
         if enabled then
             if state.qualityConnection then
                 pcall(function() state.qualityConnection:Disconnect() end)
