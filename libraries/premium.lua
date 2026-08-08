@@ -2890,31 +2890,26 @@ do
 
     maxFps:CreateToggle({
         Name = "Remove Particles",
-        Default = true,
         Function = saveOnToggle(toggleParticles),
     })
 
     maxFps:CreateToggle({
         Name = "Remove Decorations",
-        Default = true,
         Function = saveOnToggle(toggleDecorations),
     })
 
     maxFps:CreateToggle({
         Name = "Remove Shaders",
-        Default = true,
         Function = saveOnToggle(toggleShaders),
     })
 
     maxFps:CreateToggle({
         Name = "Low Quality Materials",
-        Default = true,
         Function = saveOnToggle(toggleMaterials),
     })
 
     maxFps:CreateToggle({
         Name = "Disable Shadows",
-        Default = true,
         Function = saveOnToggle(function(enabled)
             pcall(function()
                 game:GetService("Lighting").GlobalShadows = not enabled
@@ -2924,19 +2919,16 @@ do
 
     maxFps:CreateToggle({
         Name = "Disable Water Effects",
-        Default = true,
         Function = saveOnToggle(toggleWater),
     })
 
     maxFps:CreateToggle({
         Name = "Strip Avatar Clothing",
-        Default = false,
         Function = saveOnToggle(toggleClothing),
     })
 
     maxFps:CreateToggle({
         Name = "Lock Quality Level",
-        Default = true,
         Function = saveOnToggle(toggleQualityLock),
     })
 
