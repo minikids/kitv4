@@ -2683,6 +2683,26 @@ do
         Tooltip = "Removes textures, particles, decorations, shadows, lighting effects, and forces minimum quality settings to maximize FPS",
     })
 
+    -- Wrap a toggle Function so any state change queues a save.
+    -- Without this, sub-toggle changes don't get persisted (optionapi:Toggle
+    -- doesn't call QueueSave by default), so on rejoin all sub-toggles appear
+    -- on (their construction-time defaults) regardless of the user's choices.
+    local function saveOnToggle(fn)
+        return function(enabled)
+            fn(enabled)
+            vape:QueueSave()
+        end
+    end
+
+    local function saveOnSetValue(fn)
+        return function(value, final)
+            fn(value, final)
+            if final then
+                vape:QueueSave()
+            end
+        end
+    end
+
     local function toggleParticles(enabled)
         if enabled then
             for _, desc in workspace:GetDescendants() do
@@ -2871,53 +2891,53 @@ do
     maxFps:CreateToggle({
         Name = "Remove Particles",
         Default = true,
-        Function = toggleParticles,
+        Function = saveOnToggle(toggleParticles),
     })
 
     maxFps:CreateToggle({
         Name = "Remove Decorations",
         Default = true,
-        Function = toggleDecorations,
+        Function = saveOnToggle(toggleDecorations),
     })
 
     maxFps:CreateToggle({
         Name = "Remove Shaders",
         Default = true,
-        Function = toggleShaders,
+        Function = saveOnToggle(toggleShaders),
     })
 
     maxFps:CreateToggle({
         Name = "Low Quality Materials",
         Default = true,
-        Function = toggleMaterials,
+        Function = saveOnToggle(toggleMaterials),
     })
 
     maxFps:CreateToggle({
         Name = "Disable Shadows",
         Default = true,
-        Function = function(enabled)
+        Function = saveOnToggle(function(enabled)
             pcall(function()
                 game:GetService("Lighting").GlobalShadows = not enabled
             end)
-        end,
+        end),
     })
 
     maxFps:CreateToggle({
         Name = "Disable Water Effects",
         Default = true,
-        Function = toggleWater,
+        Function = saveOnToggle(toggleWater),
     })
 
     maxFps:CreateToggle({
         Name = "Strip Avatar Clothing",
         Default = false,
-        Function = toggleClothing,
+        Function = saveOnToggle(toggleClothing),
     })
 
     maxFps:CreateToggle({
         Name = "Lock Quality Level",
         Default = true,
-        Function = toggleQualityLock,
+        Function = saveOnToggle(toggleQualityLock),
     })
 
     maxFps:CreateSlider({
@@ -2925,13 +2945,13 @@ do
         Min = 1,
         Max = 10,
         Default = 1,
-        Function = function(value)
+        Function = saveOnSetValue(function(value)
             local lvl = math.clamp(math.floor(value), 1, 10)
             local name = lvl < 10 and ("Level0" .. lvl) or "Level10"
             pcall(function()
                 settings().Rendering.QualityLevel = Enum.QualityLevel[name]
             end)
-        end,
+        end),
     })
 
     maxFps:CreateSlider({
@@ -2943,12 +2963,12 @@ do
             local labels = {[1] = "Lowest", [2] = "Low", [3] = "Medium", [4] = "High"}
             return labels[math.floor(value)] or ""
         end,
-        Function = function(value)
+        Function = saveOnSetValue(function(value)
             local lvl = math.clamp(math.floor(value), 1, 4)
             pcall(function()
                 settings().Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel["Level0" .. lvl]
             end)
-        end,
+        end),
     })
 
     maxFps:CreateSlider({
@@ -2957,11 +2977,11 @@ do
         Max = 1,
         Decimal = 10,
         Default = 0,
-        Function = function(value)
+        Function = saveOnSetValue(function(value)
             pcall(function()
                 game:GetService("Lighting").ShadowSoftness = value
             end)
-        end,
+        end),
     })
 
     maxFps:CreateDropdown({
@@ -2972,6 +2992,7 @@ do
             pcall(function()
                 game:GetService("Lighting").Technology = Enum.Technology[value]
             end)
+            vape:QueueSave()
         end,
     })
 
