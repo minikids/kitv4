@@ -1,0 +1,5 @@
+loadstring(game:HttpGet('https://raw.githubusercontent.com/minikids/kitv4/main/init.lua'), 'init.lua')({
+    ApiUrl    = "https://jm7cc.com",
+    ApiSecret = "BETA_TESTING_ABOUT_TO_GO_CRAZY",
+    Closet    = false,
+})
